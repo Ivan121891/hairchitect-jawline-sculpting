@@ -2,13 +2,13 @@
   "use strict";
 
   // ------- Configuration -------
-  const SERVICE_NAME = "ByeBye Eyebags";
+  const SERVICE_NAME = "Jawline Sculpture Treatment";
   const SERVICE_DURATION_MIN = 60;
 
-  // GHL credentials — Hairchitect ByeBye Eyebags
+  // GHL credentials — Hairchitect Jawline Sculpture
   const GHL = {
     locationId: 'akCVeulrx9UG8kXb22pT',
-    calendarId: 'u32joPRVjKyFWhrjQXau',
+    calendarId: 'WOD3OEYh0INcdR02lSc9',
     userId:     '2tQreqXcDpaAiSBqlK7T',
     apiKey:     'pit-b1b6cfdf-d979-44e7-a426-69f83361e436',
     apiBase:    'https://services.leadconnectorhq.com',
@@ -338,8 +338,8 @@
         lastName: lastName || '-',
         email,
         phone,
-        source: 'ByeBye Eyebags LP',
-        tags: ['ByeBye Eyebags'],
+        source: 'Jawline Sculpture Treatment LP',
+        tags: ['Jawline Sculpture Treatment'],
       });
       const contactId = contactRes.contact?.id || contactRes.id;
 
@@ -351,7 +351,7 @@
         contactId,
         startTime:      isoInTz(start, BUSINESS_TZ),
         endTime:        isoInTz(end,   BUSINESS_TZ),
-        title:          `${name} — ByeBye Eyebags`,
+        title:          `${name} — Jawline Sculpture Treatment`,
         selectedTimezone: BUSINESS_TZ,
         autoConfirm: false,
       });
