@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  // ?test=1 -> QA mode: store leads but DO NOT fire Meta Schedule conversion.
+  const TEST = new URLSearchParams(location.search).get('test') === '1';
+
   // ------- Configuration -------
   const SERVICE_NAME = "Jawline Sculpture Treatment";
   const SERVICE_DURATION_MIN = 60;
@@ -107,7 +110,7 @@
       a.getDate() === b.getDate();
   }
   function formatLongDate(d) {
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString('en-US', {
       weekday: "long", month: "long", day: "numeric", year: "numeric",
     });
   }
@@ -342,23 +345,50 @@
     try {
       // Generate eventId for deduplication
       var eventId = "sch_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+      // Persist the lead + chosen slot BEFORE any GHL call (non-blocking).
+      var leadId = null;
+      try {
+        const _leadRes = await fetch('/api/lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            locationId: GHL.locationId,
+            client: location.hostname.split('.')[0].split('-')[0],
+            page: location.hostname,
+            treatment: SERVICE_NAME,
+            calendarId: GHL.calendarId,
+            startTime: isoInTz(start, BUSINESS_TZ),
+            endTime: isoInTz(end, BUSINESS_TZ),
+            name, email, phone,
+            fbclid: (new URLSearchParams(location.search)).get('fbclid') || undefined,
+            fbp: (document.cookie.match(/_fbp=([^;]+)/) || [])[1],
+            fbc: (document.cookie.match(/_fbc=([^;]+)/) || [])[1],
+            test: TEST,
+          }),
+        });
+        const _leadJson = await _leadRes.json().catch(function () { return {}; });
+        leadId = _leadJson.leadId || null;
+      } catch (_) { /* never block booking on lead persistence */ }
 
       // 1) Upsert contact in GHL
       const contactRes = await ghlFetch('/contacts/upsert', {
         locationId: GHL.locationId,
-        firstName: firstName || name,
+        firstName: (TEST ? "[TEST] " : "") + (firstName || name),
         lastName: lastName || '-',
         email,
         phone,
         source: 'Jawline Sculpture Treatment LP',
-        tags: ['Jawline Sculpture Treatment'],
+        tags: TEST ? ['Jawline Sculpture Treatment', 'TEST-DONOTCOUNT'] : ['Jawline Sculpture Treatment'],
       });
       const contactId = contactRes.contact?.id || contactRes.id;
 
       // 2) Book appointment
       // RoundRobin calendar — omit assignedUserId so GHL auto-assigns
-      await ghlFetch('/calendars/events/appointments', {
+      const _aptRes = await ghlFetch('/calendars/events/appointments', {
+        assignedUserId: '2tQreqXcDpaAiSBqlK7T', // calendar team member (round-robin 422 fix)
         calendarId: GHL.calendarId,
+        ignoreFreeSlotValidation: true,
         locationId: GHL.locationId,
         contactId,
         startTime:      isoInTz(start, BUSINESS_TZ),
@@ -369,16 +399,29 @@
       });
 
       // Pixel tracking
+      const appointmentId = (_aptRes && (_aptRes.id || _aptRes.appointmentId || (_aptRes.appointment && _aptRes.appointment.id))) || null;
+      // Record the TRUE outcome: ghl call throws on non-2xx (-> outer catch ->
+      // 'fail'), so reaching here means 2xx; a missing id is a captured lead,
+      // not a booking — gate status + Schedule pixels on a real booking.
+      const bookingStatus = appointmentId ? 'success' : 'lead_only';
+      // Persist booking success (non-blocking).
+      try {
+        fetch('/api/lead/result', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+          body: JSON.stringify({ leadId: leadId, locationId: GHL.locationId, status: bookingStatus, appointmentId: appointmentId, eventId: eventId, scheduleFired: (!TEST && bookingStatus === 'success'), test: TEST }),
+        }).catch(function () {});
+      } catch (_) {}
+
       track("Lead", { content_name: SERVICE_NAME });
-      track("Schedule", { content_name: SERVICE_NAME });
+      if (!TEST && bookingStatus === 'success') track("Schedule", { content_name: SERVICE_NAME });
       track("CompleteRegistration", { content_name: SERVICE_NAME });
-      trackDedicated("Schedule", { content_name: SERVICE_NAME }, eventId);
+      if (!TEST && bookingStatus === 'success') trackDedicated("Schedule", { content_name: SERVICE_NAME }, eventId);
 
       // CAPI call
       try {
         const getCookie = (n) =>
           document.cookie.match("(^|;)\\s*" + n + "\\s*=\\s*([^;]+)")?.pop() || "";
-        fetch("/api/capi", {
+        if (!TEST) fetch("/api/capi", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           keepalive: true,
@@ -401,6 +444,12 @@
       showStep("confirmed");
     } catch (err) {
       console.error("GHL booking error", err);
+      try {
+        fetch('/api/lead/result', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+          body: JSON.stringify({ leadId: leadId, locationId: GHL.locationId, status: 'fail', error: (err && err.message) ? err.message : String(err), test: TEST }),
+        }).catch(function () {});
+      } catch (_) {}
       const detail = (err && err.message) ? err.message : "Booking failed. Please try again or call us.";
       errorText.textContent = detail;
       errorText.classList.remove("hidden");
