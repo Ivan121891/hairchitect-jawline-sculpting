@@ -5,10 +5,10 @@
   const TEST = new URLSearchParams(location.search).get('test') === '1';
 
   // ------- Configuration -------
-  const SERVICE_NAME = "Jawline Sculpture Treatment";
+  const SERVICE_NAME = "Jawline Sculpting Treatment";
   const SERVICE_DURATION_MIN = 60;
 
-  // GHL credentials — Hairchitect Jawline Sculpture
+  // GHL credentials — Hairchitect Jawline Sculpting
   const GHL = {
     locationId: 'akCVeulrx9UG8kXb22pT',
     calendarId: 'WOD3OEYh0INcdR02lSc9',
@@ -378,8 +378,8 @@
         lastName: lastName || '-',
         email,
         phone,
-        source: 'Jawline Sculpture Treatment LP',
-        tags: TEST ? ['Jawline Sculpture Treatment', 'TEST-DONOTCOUNT'] : ['Jawline Sculpture Treatment'],
+        source: 'Jawline Sculpting Treatment LP',
+        tags: TEST ? ['Jawline Sculpting Treatment', 'TEST-DONOTCOUNT'] : ['Jawline Sculpting Treatment'],
       });
       const contactId = contactRes.contact?.id || contactRes.id;
 
@@ -393,7 +393,7 @@
         contactId,
         startTime:      isoInTz(start, BUSINESS_TZ),
         endTime:        isoInTz(end,   BUSINESS_TZ),
-        title:          `${name} — Jawline Sculpture Treatment`,
+        title:          `${name} — Jawline Sculpting Treatment`,
         selectedTimezone: BUSINESS_TZ,
         autoConfirm: false,
       });
